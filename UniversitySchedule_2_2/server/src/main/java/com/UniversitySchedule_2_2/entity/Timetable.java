@@ -51,13 +51,58 @@ public class Timetable extends TimetableDTO {
     @OnDelete(action = OnDeleteAction.CASCADE)
     private LessonType lessonType;
 
-    @Column(name = "number_of_lesson_in_day", nullable = false)
-    private Integer numberOfLessonInDay;
+  @Override
+    public void save(BookInstance bookInstance) {
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "teacher_id", nullable = false)
-    @OnDelete(action = OnDeleteAction.CASCADE)
-    private Teacher teacher;
+    }
+
+    @Override
+    public void deleteById(Long id) {
+
+    }
+
+    @Override
+    public Optional<BookInstance> findById(Long id) {
+        String query = "SELECT * FROM book_instance where id=?";
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+            preparedStatement.setLong(1, id);
+            return extractBookInstances(preparedStatement.executeQuery()).findAny();
+        } catch (SQLException e) {
+            log.error(e.getLocalizedMessage());
+            throw new RuntimeException();
+        }
+    }
+
+    private Stream<BookInstance> extractBookInstances(ResultSet resultSet) throws SQLException {
+        Stream.Builder<BookInstance> builder = Stream.builder();
+        while (resultSet.next()) {
+            builder.add(
+                    BookInstance.builder()
+                            .id(resultSet.getLong("id"))
+                            .isAvailable(resultSet.getBoolean("is_available"))
+                            .build());
+        }
+        resultSet.close();
+        return builder.build();
+    }
+
+    @Override
+    public Book getInfoByBookInstance(Long bookInstanceId) {
+        String query = "select books.title from book_instance left join books on "
+                + "book_instance.id = books.id_book_instance where book_instance.id = ?;";
+
+        try (PreparedStatement preparedStatement = connection.prepareStatement(query)) {
+            preparedStatement.setLong(1, bookInstanceId);
+            ResultSet resultSet = preparedStatement.executeQuery();
+
+            return Book.builder()
+                    .title(resultSet.getString("title"))
+                    .build();
+
+        } catch (SQLException e) {
+            log.error(e.getLocalizedMessage());
+            throw new RuntimeException(e);
+        }
 
     @ManyToMany(cascade = CascadeType.ALL)
     @OnDelete(action = OnDeleteAction.CASCADE)
